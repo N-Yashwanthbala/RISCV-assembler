@@ -12,14 +12,12 @@
 #define HEAP_START 0x10008000
 #define STACK_START 0x7FFFFFFC
 
-
 typedef struct {
     char *mnemonic;
     char *opcode;
     char *funct3;
     char *funct7;
 } InstructionEncoding;
-
 
 InstructionEncoding r_format[] = {
     {"add", "0110011", "000", "0000000"},
@@ -70,7 +68,6 @@ InstructionEncoding uj_format[] = {
     {"jal", "1101111", NULL, NULL}
 };
 
-
 typedef struct {
     char label[MAX_LINE_LENGTH];
     int address;
@@ -78,7 +75,6 @@ typedef struct {
 
 LabelTable labels[MAX_LABELS];
 int label_count = 0;
-
 
 typedef struct {
     char var_name[MAX_LINE_LENGTH];
@@ -89,58 +85,53 @@ VariableTable variables[MAX_VARIABLES];
 int var_count = 0;
 int data_address = DATA_START;
 
-
 int get_label_address(char *label) {
     for (int i = 0; i < label_count; i++) {
         if (strcmp(label, labels[i].label) == 0) {
-            return labels[i].address; // Return address of the label
+            return labels[i].address;
         }
     }
-    return -1; 
+    return -1;
 }
-
 
 char* encode_instruction(char* instruction, char* operand, int address) {
     static char encoded[50];
 
-   
-int label_addr = get_label_address(operand);
-    if (label_addr != -1) {
-        int offset = (label_addr - address) / 4;  // Calculate offset for branch instructions
-        sprintf(encoded, "LABEL-ADDR: 0x%X OFFSET: %d", label_addr, offset);
-        return encoded;
-    }
-
-    
- for (int i = 0; i < sizeof(r_format)/sizeof(r_format[0]); i++) {
-        if (strcmp(instruction, r_format[i].mnemonic) == 0) {
-            sprintf(encoded, "%s-%s-%s", r_format[i].opcode, r_format[i].funct3, r_format[i].funct7);
-            return encoded;
-        }
-    }
-    for (int i = 0; i < sizeof(i_format)/sizeof(i_format[0]); i++) {
-        if (strcmp(instruction, i_format[i].mnemonic) == 0) {
-            sprintf(encoded, "%s-%s", i_format[i].opcode, i_format[i].funct3);
-            return encoded;
-        }
-    }
-    for (int i = 0; i < sizeof(sb_format)/sizeof(sb_format[0]); i++) {
-        if (strcmp(instruction, sb_format[i].mnemonic) == 0) {
-            sprintf(encoded, "%s-%s OFFSET: %d", sb_format[i].opcode, sb_format[i].funct3, label_addr);
-            return encoded;
-        }
-    }
-    for (int i = 0; i < sizeof(uj_format)/sizeof(uj_format[0]); i++) {
-        if (strcmp(instruction, uj_format[i].mnemonic) == 0) {
-            sprintf(encoded, "%s ADDR: 0x%X", uj_format[i].opcode, label_addr);
-            return encoded;
-        }
-    }
-
- return "UNKNOWN";
+ int label_addr = get_label_address(operand);
+ if (label_addr != -1) {
+    int offset = (label_addr - address) / 4;
+    sprintf(encoded, "LABEL-ADDR: 0x%X OFFSET: %d", label_addr, offset);
+    return encoded;
 }
 
-// Function to parse assembly file
+for (int i = 0; i < sizeof(r_format)/sizeof(r_format[0]); i++) {
+     if (strcmp(instruction, r_format[i].mnemonic) == 0) {
+        sprintf(encoded, "%s-%s-%s", r_format[i].opcode, r_format[i].funct3, r_format[i].funct7);
+         return encoded;
+     }
+ }
+for (int i = 0; i < sizeof(i_format)/sizeof(i_format[0]); i++) {
+    if (strcmp(instruction, i_format[i].mnemonic) == 0) {
+        sprintf(encoded, "%s-%s", i_format[i].opcode, i_format[i].funct3);
+        return encoded;
+    }
+}
+for (int i = 0; i < sizeof(sb_format)/sizeof(sb_format[0]); i++) {
+    if (strcmp(instruction, sb_format[i].mnemonic) == 0) {
+        sprintf(encoded, "%s-%s OFFSET: %d", sb_format[i].opcode, sb_format[i].funct3, label_addr);
+        return encoded;
+    }
+}
+for (int i = 0; i < sizeof(uj_format)/sizeof(uj_format[0]); i++) {
+    if (strcmp(instruction, uj_format[i].mnemonic) == 0) {
+        sprintf(encoded, "%s ADDR: 0x%X", uj_format[i].opcode, label_addr);
+        return encoded;
+    }
+}
+
+return "UNKNOWN";
+}
+
 void parse_asm_file(const char *input_file, const char *output_file) {
     FILE *in = fopen(input_file, "r");
     FILE *out = fopen(output_file, "w");
@@ -148,47 +139,37 @@ void parse_asm_file(const char *input_file, const char *output_file) {
         printf("Error opening files!\n");
         return;
     }
-    
- char line[MAX_LINE_LENGTH];
+    char line[MAX_LINE_LENGTH];
     int address = CODE_START;
-    
-while (fgets(line, sizeof(line), in)) {
+    while (fgets(line, sizeof(line), in)) {
         char instruction[MAX_LINE_LENGTH], operand[MAX_LINE_LENGTH];
         sscanf(line, "%s %s", instruction, operand);
-        
-        // Handle labels
- if (strchr(instruction, ':')) {
+        if (strchr(instruction, ':')) {
             instruction[strlen(instruction) - 1] = '\0';
             strcpy(labels[label_count].label, instruction);
             labels[label_count].address = address;
             label_count++;
             continue;
-        }
-
-        // Handle variable storage in .data segment
- if (strcmp(instruction, ".data") == 0) {
+         }
+         if (strcmp(instruction, ".data") == 0) {
             address = DATA_START;
             continue;
         }
-
-      
-for (int i = 0; i < var_count; i++) {
+        for (int i = 0; i < var_count; i++) {
             if (strstr(operand, variables[i].var_name)) {
                 sprintf(operand, "0x%X", variables[i].address);
             }
         }
-
- fprintf(out, "0x%X 0x%s , %s %s # %s\n", 
-         address, encode_instruction(instruction, operand, address), instruction, operand, encode_instruction(instruction, operand, address));
-        
-  address += 4;
+        fprintf(out, "0x%X 0x%s , %s %s # %s\n", 
+                address, encode_instruction(instruction, operand, address), instruction, operand, encode_instruction(instruction, operand, address));
+        address += 4;
     }
-    
- fclose(in);
- fclose(out);
+    fclose(in);
+    fclose(out);
 }
 
 int main() {
     parse_asm_file("input.asm", "output.mc");
     return 0;
 }
+
